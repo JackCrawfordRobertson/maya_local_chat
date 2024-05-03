@@ -1,55 +1,52 @@
-'use client';
+"use client";
 
-import { useState, useEffect } from 'react';
-import io from 'socket.io-client';
+
+import { useEffect, useRef, useState } from 'react';
+import { collection, orderBy, query, limit, addDoc, serverTimestamp } from 'firebase/firestore';
+import { useCollectionData } from 'react-firebase-hooks/firestore';
+import { db } from '../../firebase';
 
 const Chat = () => {
-  const [messages, setMessages] = useState([]);
-  const [inputMessage, setInputMessage] = useState('');
+  const messagesRef = collection(db, 'messages');
+  const queryRef = query(messagesRef, orderBy('createdAt'), limit(25));
+  const [messages] = useCollectionData(queryRef, { idField: 'id' });
+  const [formValue, setFormValue] = useState('');
+  const dummy = useRef();
 
-  useEffect(() => {
-    const socket = io('http://localhost:3000');
-
-    socket.on('message', (message) => {
-      setMessages((prevMessages) => [...prevMessages, message]);
+  const sendMessage = async (e) => {
+    e.preventDefault();
+    await addDoc(messagesRef, {
+      text: formValue,
+      createdAt: serverTimestamp(),
     });
-
-    return () => {
-      socket.disconnect();
-    };
-  }, []);
-
-  const sendMessage = () => {
-    if (inputMessage.trim() !== '') {
-      const message = {
-        text: inputMessage,
-        timestamp: new Date().toLocaleString(),
-      };
-      setMessages([...messages, message]);
-      setInputMessage('');
-      socket.emit('message', message);
-    }
+    setFormValue('');
+    dummy.current.scrollIntoView({ behavior: 'smooth' });
   };
 
   return (
     <div>
-      <div className="message-list">
-        {messages.map((message, index) => (
-          <div key={index}>
-            <p>{message.text}</p>
-            <span>{message.timestamp}</span>
-          </div>
-        ))}
-      </div>
-      <div className="input-container">
+      <main>
+        {messages &&
+          messages.map((msg) => (
+            <ChatMessage key={msg.id} message={msg} />
+          ))}
+        <div ref={dummy}></div>
+      </main>
+      <form onSubmit={sendMessage}>
         <input
-          type="text"
-          value={inputMessage}
-          onChange={(e) => setInputMessage(e.target.value)}
-          placeholder="Type a message..."
+          value={formValue}
+          onChange={(e) => setFormValue(e.target.value)}
         />
-        <button onClick={sendMessage}>Send</button>
-      </div>
+        <button type="submit">Send</button>
+      </form>
+    </div>
+  );
+};
+
+const ChatMessage = ({ message }) => {
+  return (
+    <div>
+      <p>{message.text}</p>
     </div>
   );
 };
